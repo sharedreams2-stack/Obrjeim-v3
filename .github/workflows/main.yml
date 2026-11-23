@@ -32,13 +32,13 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar NDK e CMake (usados pelo motor C++)
+      # O runner ubuntu-latest já traz o Android SDK (ANDROID_HOME) com o sdkmanager.
+      # Não usamos android-actions/setup-android: ele falha com "Failed to find package 'tools'".
+      - name: Instalar plataforma, NDK e CMake
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;26.1.10909125"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;26.1.10909125"
 
       # o projeto não inclui gradlew, então usamos o Gradle 8.9 (versão do gradle-wrapper.properties)
       - name: Gradle
