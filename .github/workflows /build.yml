@@ -1,0 +1,58 @@
+name: Build Oberjein (Android)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  ZIP_FILE: Oberjein-android-project-v3.zip   # fica na raiz do repositório
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extrair o zip na raiz
+        run: |
+          test -f "$ZIP_FILE" || { echo "::error::$ZIP_FILE não encontrado na raiz do repositório"; exit 1; }
+          unzip -o -q "$ZIP_FILE" -d .
+          # o zip traz a pasta Oberjein/ com settings.gradle.kts dentro
+          if [ -f settings.gradle.kts ]; then echo "PROJECT_DIR=." >> "$GITHUB_ENV"
+          elif [ -f Oberjein/settings.gradle.kts ]; then echo "PROJECT_DIR=Oberjein" >> "$GITHUB_ENV"
+          else echo "::error::settings.gradle.kts não encontrado após extrair"; exit 1; fi
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar NDK e CMake (usados pelo motor C++)
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;26.1.10909125"
+
+      # o projeto não inclui gradlew, então usamos o Gradle 8.9 (versão do gradle-wrapper.properties)
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compilar (debug)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Publicar o APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: oberjein-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
